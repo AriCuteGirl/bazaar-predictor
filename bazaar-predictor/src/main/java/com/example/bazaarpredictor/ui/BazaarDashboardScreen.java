@@ -8,6 +8,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.client.input.MouseButtonEvent;
 import java.util.List;
 
 public final class BazaarDashboardScreen extends Screen {
@@ -56,8 +57,27 @@ public final class BazaarDashboardScreen extends Screen {
             y += 12; shown++;
         }
         if (opportunities.isEmpty()) text(g, "No opportunities yet. Check the companion service and filters.", 24, 104, 0xFF7777);
+        int total = opportunities.size();
+        int trackTop = 98, trackBottom = Math.max(trackTop + 1, height - 55);
+        g.fill(0x55334455, width - 16, trackTop, width - 10, trackBottom);
+        int visible = 18, maxScroll = Math.max(0, total - visible);
+        int thumbHeight = Math.max(18, (trackBottom - trackTop) * Math.min(visible, Math.max(1, total)) / Math.max(1, total));
+        int thumbTop = trackTop + (maxScroll == 0 ? 0 : (trackBottom - trackTop - thumbHeight) * scroll / maxScroll);
+        g.fill(0xFF35E4D0, width - 16, thumbTop, width - 10, thumbTop + thumbHeight);
         text(g, "Click a row for details  •  Mouse wheel changes pages", 24, height - 38, 0xAAB8CC);
         super.extractRenderState(g, mouseX, mouseY, delta);
+    }
+    @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (event.button() == 0 && event.y() >= 98 && event.y() < 98 + 18 * 12) {
+            int index = scroll + (int)((event.y() - 98) / 12);
+            if (index >= 0 && index < opportunities.size()) { minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(index))); return true; }
+        }
+        return super.mouseClicked(event, doubleClick);
+    }
+    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+        int maxScroll = Math.max(0, opportunities.size() - 18);
+        scroll = Math.max(0, Math.min(maxScroll, scroll - (int)Math.signum(vertical)));
+        return true;
     }
     private static String formatCoins(double value) { return value >= 1_000_000 ? String.format("%.2fm", value / 1_000_000) : value >= 1_000 ? String.format("%.2fk", value / 1_000) : String.format("%.0f", value); }
     private static String age(long timestamp) { long seconds = Math.max(0, (System.currentTimeMillis() - timestamp) / 1000); return seconds < 60 ? seconds + "s" : (seconds / 60) + "m"; }
