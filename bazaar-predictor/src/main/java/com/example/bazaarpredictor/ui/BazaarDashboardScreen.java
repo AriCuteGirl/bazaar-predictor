@@ -1,7 +1,7 @@
 package com.example.bazaarpredictor.ui;
 
 import com.example.bazaarpredictor.model.Opportunity;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Button;
@@ -19,13 +19,13 @@ public final class BazaarDashboardScreen extends Screen {
         search = new EditBox(font, 20, 335, 220, 20, Component.literal("Search"));
         search.setHint(Component.literal("Search items")); addRenderableWidget(search);
         addRenderableWidget(Button.builder(Component.literal("Prepare selected order"), b -> {
-            if (!opportunities.isEmpty()) minecraft.setScreen(new ConfirmationScreen(opportunities.get(Math.min(scroll, opportunities.size() - 1))));
+            if (!opportunities.isEmpty()) minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(Math.min(scroll, opportunities.size() - 1))));
         }).bounds(250, 335, 180, 20).build());
     }
-    @Override public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
-        renderBackground(g, mouseX, mouseY, delta);
-        g.drawString(font, title, 20, 16, 0xFFFFFF);
-        g.drawString(font, "Item                         Buy       Sell       Net/item    Spread     Volume     Fill", 20, 34, 0xA0A0A0);
+    @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+        extractBackground(g, mouseX, mouseY, delta);
+        g.text(font, title, 20, 16, 0xFFFFFF);
+        g.text(font, "Item                         Buy       Sell       Net/item    Spread     Volume     Fill", 20, 34, 0xA0A0A0);
         int y = 50;
         String query = search == null ? "" : search.getValue().toLowerCase();
         int shown = 0;
@@ -33,11 +33,10 @@ public final class BazaarDashboardScreen extends Screen {
             Opportunity o = opportunities.get(i);
             if (!query.isBlank() && !o.name().toLowerCase().contains(query) && !o.productId().toLowerCase().contains(query)) continue;
             int color = o.risk().equals("ok") ? 0xE0E0E0 : 0xFFCC66;
-            g.drawString(font, String.format("%-26s %7.0f  %7.0f  %9.0f  %6.1f%%  %8.0f  %5.1fm", o.name(), o.buyPrice(), o.sellPrice(), o.netProfit(), o.spreadPercent(), o.volume(), o.fillMinutes()), 20, y, color);
+            g.text(font, String.format("%-26s %7.0f  %7.0f  %9.0f  %6.1f%%  %8.0f  %5.1fm", o.name(), o.buyPrice(), o.sellPrice(), o.netProfit(), o.spreadPercent(), o.volume(), o.fillMinutes()), 20, y, color);
             y += 12; shown++;
         }
-        if (opportunities.isEmpty()) g.drawString(font, "No opportunities yet. Is the companion service running?", 20, 60, 0xFF7777);
-        super.render(g, mouseX, mouseY, delta);
+        if (opportunities.isEmpty()) g.text(font, "No opportunities yet. Is the companion service running?", 20, 60, 0xFF7777);
+        super.extractRenderState(g, mouseX, mouseY, delta);
     }
-    @Override public boolean mouseScrolled(double x, double y, double amount) { scroll = Math.max(0, Math.min(Math.max(0, opportunities.size() - 1), scroll - (int)Math.signum(amount))); return true; }
 }
