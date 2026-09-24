@@ -37,6 +37,13 @@ public final class BazaarDashboardScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("View info"), b -> {
             if (selectedIndex >= 0 && selectedIndex < opportunities.size()) minecraft.setScreenAndShow(new OpportunityDetailsScreen(this, opportunities.get(selectedIndex)));
         }).bounds(715, 390, 145, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Star item"), b -> {
+            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) {
+                String id = opportunities.get(selectedIndex).productId();
+                if (!ClientConfig.get().starredItems.add(id)) ClientConfig.get().starredItems.remove(id);
+                b.setMessage(Component.literal(ClientConfig.get().starredItems.contains(id) ? "Unstar item" : "Star item"));
+            }
+        }).bounds(535, 390, 90, 20).build());
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g);
@@ -64,6 +71,7 @@ public final class BazaarDashboardScreen extends Screen {
                 g.fill(0xFF35E4D0, 18, y - 4, 19, y + 13);
                 g.fill(0xFF35E4D0, width - 19, y - 4, width - 18, y + 13);
             }
+            if (ClientConfig.get().starredItems.contains(o.productId())) text(g, "★", 8, y, 0xFFD75A);
             text(g, o.name(), 24, y, color);
             text(g, formatCoins(o.buyPrice()), 350, y, color);
             text(g, formatCoins(o.sellPrice()), 470, y, color);
