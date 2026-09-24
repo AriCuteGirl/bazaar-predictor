@@ -14,7 +14,6 @@ public final class BazaarDashboardScreen extends Screen {
     private final List<Opportunity> opportunities;
     private int scroll;
     private EditBox search;
-    private EditBox minProfit, minVolume, maxSpread;
     private boolean paused;
     public BazaarDashboardScreen(List<Opportunity> opportunities) {
         super(Component.literal("Bazaar Predictor")); this.opportunities = opportunities;
@@ -22,24 +21,11 @@ public final class BazaarDashboardScreen extends Screen {
     @Override protected void init() {
         search = new EditBox(font, 20, 335, 220, 20, Component.literal("Search"));
         search.setHint(Component.literal("Search items")); addRenderableWidget(search);
-        minProfit = field("Min profit", "100", 20, 365);
-        minVolume = field("Min volume", "100", 145, 365);
-        maxSpread = field("Max spread %", "50", 270, 365);
-        addRenderableWidget(Button.builder(Component.literal("Apply filters"), b -> applyFilters()).bounds(395, 365, 130, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Settings"), b -> { }).bounds(535, 365, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Settings"), b -> minecraft.setScreenAndShow(new SettingsScreen(this))).bounds(535, 365, 90, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Pause"), b -> { paused = !paused; b.setMessage(Component.literal(paused ? "Resume" : "Pause")); }).bounds(630, 365, 80, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Prepare order"), b -> {
             if (!opportunities.isEmpty()) minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(Math.min(scroll, opportunities.size() - 1))));
         }).bounds(715, 365, 145, 20).build());
-    }
-    private EditBox field(String hint, String value, int x, int y) {
-        EditBox box = new EditBox(font, x, y, 115, 20, Component.literal(hint));
-        box.setValue(value); box.setHint(Component.literal(hint)); addRenderableWidget(box); return box;
-    }
-    private void applyFilters() {
-        try { ClientConfig.get().minimumProfit = Double.parseDouble(minProfit.getValue()); } catch (NumberFormatException ignored) { }
-        try { ClientConfig.get().minimumVolume = Double.parseDouble(minVolume.getValue()); } catch (NumberFormatException ignored) { }
-        try { ClientConfig.get().maximumSpreadPercent = Double.parseDouble(maxSpread.getValue()); } catch (NumberFormatException ignored) { }
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g);
