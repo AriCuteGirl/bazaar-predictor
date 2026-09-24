@@ -16,7 +16,7 @@ public final class OpportunityDetailsScreen extends Screen {
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g); int x = width / 2 - 220; int y = height / 2 - 100;
-        g.fill(0xAA142234, x - 20, y - 25, x + 420, y + 135);
+        g.fill(x - 20, y - 25, x + 420, y + 135, 0xEE142234);
         text(g, "BAZAAR / ITEM DETAILS", x, y, 0x35E4D0); text(g, opportunity.name(), x, y + 25, 0xFFFFFF);
         text(g, "Buy order: " + coins(opportunity.buyPrice()), x, y + 50, 0xD0D8E8); text(g, "Sell order: " + coins(opportunity.sellPrice()), x, y + 68, 0xD0D8E8);
         text(g, "Estimated net: " + coins(opportunity.netProfit()), x, y + 86, 0x65E6AE); text(g, "Spread: " + String.format("%.2f%%", opportunity.spreadPercent()), x + 210, y + 86, 0xD0D8E8);
@@ -24,5 +24,7 @@ public final class OpportunityDetailsScreen extends Screen {
         text(g, "This does not place an order or click menus. Review and do it manually.", x, y + 122, 0xFFCC66); super.extractRenderState(g, mouseX, mouseY, delta);
     }
     private static String coins(double v) { return v >= 1_000_000 ? String.format("%.2fm", v / 1_000_000) : v >= 1_000 ? String.format("%.2fk", v / 1_000) : String.format("%.0f", v); }
+    @Override public void onClose() { minecraft.setScreenAndShow(parent); }
+    @Override public boolean isPauseScreen() { return false; }
     private void text(GuiGraphicsExtractor g, String value, int x, int y, int color) { MutableComponent c = Component.literal(value).withStyle(s -> s.withColor(color)); g.textRenderer().accept(x, y, c); }
 }

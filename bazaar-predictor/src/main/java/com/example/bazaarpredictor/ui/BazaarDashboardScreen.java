@@ -1,130 +1,173 @@
 package com.example.bazaarpredictor.ui;
 
-import com.example.bazaarpredictor.model.Opportunity;
 import com.example.bazaarpredictor.config.ClientConfig;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.client.input.MouseButtonEvent;
+import com.example.bazaarpredictor.model.Opportunity;
+import com.example.bazaarpredictor.model.OpportunityTable;
 import com.example.bazaarpredictor.network.CompanionClient;
-import java.util.List;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import java.util.*;
 
 public final class BazaarDashboardScreen extends Screen {
-    private final List<Opportunity> opportunities;
-    private int scroll;
-    private EditBox search;
-    private boolean paused;
-    private int selectedIndex = -1;
-    private int hoveredIndex = -1;
+    private static final int ROW_HEIGHT = 19;
+    private static final String[] HEADINGS = {"Item", "Buy order", "Sell order", "Net/item", "Spread", "Age"};
     private final CompanionClient companion;
-    public BazaarDashboardScreen(List<Opportunity> opportunities) {
-        super(Component.literal("Bazaar Predictor")); this.opportunities = opportunities;
-        this.companion = null;
+    private final OpportunityTable table = new OpportunityTable();
+    private final Button[] headings = new Button[6];
+    private List<Opportunity> snapshot;
+    private EditBox search;
+    private Button info, star, auto, stars;
+    private String query = "";
+    private boolean paused, starsOnly, dragging, refreshPending;
+    private List<Opportunity> refreshBaseline;
+    private int left, top, panelWidth, panelHeight, rowTop, rowBottom, capacity;
+    private final int[] columns = new int[7];
+
+    public BazaarDashboardScreen(CompanionClient companion) {
+        super(Component.literal("Bazaar Predictor"));
+        this.companion = companion;
+        this.snapshot = companion.opportunities();
     }
-    public BazaarDashboardScreen(CompanionClient companion) { super(Component.literal("Bazaar Predictor")); this.opportunities = companion.opportunities(); this.companion = companion; }
     @Override protected void init() {
-        search = new EditBox(font, 20, 335, 220, 20, Component.literal("Search"));
-        search.setHint(Component.literal("Search items")); addRenderableWidget(search);
-        addRenderableWidget(Button.builder(Component.literal("Settings"), b -> minecraft.setScreenAndShow(new SettingsScreen(this))).bounds(535, 365, 90, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Refresh"), b -> { if (companion != null) companion.refreshNow(); }).bounds(430, 365, 95, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Auto-scan: ON"), b -> { paused = !paused; b.setMessage(Component.literal(paused ? "Auto-scan: OFF" : "Auto-scan: ON")); }).bounds(320, 365, 105, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Pause"), b -> { paused = !paused; b.setMessage(Component.literal(paused ? "Resume" : "Pause")); }).bounds(630, 365, 80, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Prepare order"), b -> {
-            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(selectedIndex)));
-        }).bounds(715, 365, 145, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("View info"), b -> {
-            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) minecraft.setScreenAndShow(new OpportunityDetailsScreen(this, opportunities.get(selectedIndex)));
-        }).bounds(715, 390, 145, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Star item"), b -> {
-            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) {
-                String id = opportunities.get(selectedIndex).productId();
-                if (!ClientConfig.get().starredItems.add(id)) ClientConfig.get().starredItems.remove(id);
-                b.setMessage(Component.literal(ClientConfig.get().starredItems.contains(id) ? "Unstar item" : "Star item"));
+        panelWidth = Math.min(width - 12, 940);
+        panelHeight = height - 12;
+        left = (width - panelWidth) / 2;
+        top = 6;
+        int inner = panelWidth - 28;
+        double[] positions = {0, .39, .53, .67, .81, .91, 1};
+        for (int i = 0; i < columns.length; i++) columns[i] = left + 8 + (int)(inner * positions[i]);
+        search = new EditBox(font, left + 8, top + 38, Math.max(50, panelWidth - 240), 20, Component.literal("Search items"));
+        search.setHint(Component.literal("Search items"));
+        search.setValue(query);
+        search.setResponder(value -> { query = value; table.scrollTo(0, capacity); updateRows(); });
+        addRenderableWidget(search);
+        button("Refresh", left + panelWidth - 226, top + 38, 68, () -> {
+            refreshBaseline = companion.opportunities();
+            refreshPending = true;
+            companion.refreshNow();
+        });
+        auto = button("", left + panelWidth - 154, top + 38, 146, () -> { paused = !paused; updateRows(); });
+        int bw = (panelWidth - 28) / 4;
+        button("Settings", left + 8, top + 64, bw, () -> minecraft.setScreenAndShow(new SettingsScreen(this)));
+        stars = button("", left + 12 + bw, top + 64, bw, () -> { starsOnly = !starsOnly; table.scrollTo(0, capacity); updateRows(); });
+        star = button("", left + 16 + bw * 2, top + 64, bw, () -> {
+            Opportunity selected = table.selected();
+            if (selected != null && !ClientConfig.get().starredItems.add(selected.productId())) ClientConfig.get().starredItems.remove(selected.productId());
+            updateRows();
+        });
+        info = button("View info", left + 20 + bw * 3, top + 64, bw, () -> {
+            Opportunity selected = table.selected();
+            if (selected != null) minecraft.setScreenAndShow(new OpportunityDetailsScreen(this, selected));
+        });
+        for (int i = 0; i < 6; i++) {
+            final int index = i;
+            headings[i] = button(HEADINGS[i], columns[i], top + 92, columns[i + 1] - columns[i] - 2,
+                    () -> { table.sortBy(OpportunityTable.Column.values()[index]); updateRows(); });
+        }
+        rowTop = top + 116;
+        capacity = Math.max(1, (panelHeight - 174) / ROW_HEIGHT);
+        rowBottom = rowTop + capacity * ROW_HEIGHT;
+        button("Close", left + panelWidth - 70, top + panelHeight - 28, 62, this::onClose);
+        updateRows();
+    }
+    private Button button(String label, int x, int y, int w, Runnable action) {
+        return addRenderableWidget(Button.builder(Component.literal(label), b -> action.run()).bounds(x, y, Math.max(16, w), 20).build());
+    }
+    private void updateRows() {
+        if (search == null || info == null) return;
+        var cfg = ClientConfig.get();
+        table.update(snapshot, query, cfg.minimumProfit, cfg.minimumVolume, cfg.maximumSpreadPercent, cfg.starredItems, starsOnly, capacity);
+        info.active = star.active = table.selected() != null;
+        star.setMessage(Component.literal(table.selected() != null && cfg.starredItems.contains(table.selected().productId()) ? "Unstar item" : "Star item"));
+        stars.setMessage(Component.literal(starsOnly ? "Starred only" : "All / stars"));
+        auto.setMessage(Component.literal(paused ? "Live updates: OFF" : "Live updates: ON"));
+        for (int i = 0; i < 6; i++) if (headings[i] != null)
+            headings[i].setMessage(Component.literal(HEADINGS[i] + (i == table.column().ordinal() ? (table.ascending() ? " ↑" : " ↓") : "")));
+    }
+    @Override public void tick() {
+        super.tick();
+        if (!paused || (refreshPending && companion.opportunities() != refreshBaseline)) {
+            snapshot = companion.opportunities();
+            refreshPending = false;
+        }
+        updateRows();
+    }
+    @Override public boolean isPauseScreen() { return false; }
+    @Override public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float delta) {
+        // 26.2 fill takes x1, y1, x2, y2, ARGB (color LAST).
+        g.fill(left, top, left + panelWidth, top + panelHeight, 0xF0141F2E);
+        g.fill(left, top, left + panelWidth, top + 3, 0xFF35E4D0);
+        text(g, "BAZAAR / PREDICT  0.1.1", left + 8, top + 10, 0x35E4D0, panelWidth - 16);
+        text(g, table.rows().size() + "/" + snapshot.size() + " items | " + (paused ? "Display paused" : companion.status()), left + 8, top + 24, 0xAAB8CC, panelWidth - 16);
+        for (int row = 0; row < capacity; row++) {
+            Opportunity o = table.atVisibleRow(row, capacity);
+            if (o == null) break;
+            int y = rowTop + row * ROW_HEIGHT;
+            boolean selected = table.selected(o);
+            boolean hover = hitRow(mx, my) == row;
+            g.fill(columns[0], y, columns[6], y + ROW_HEIGHT - 1, selected ? 0xFF245568 : hover ? 0xFF294054 : row % 2 == 0 ? 0xFF1D2D40 : 0xFF192738);
+            border(g, columns[0], y, columns[6], y + ROW_HEIGHT - 1, selected ? 0xFF35E4D0 : hover ? 0xFFA0DCD6 : 0xFF34485D, selected ? 2 : 1);
+            String name = (ClientConfig.get().starredItems.contains(o.productId()) ? "★ " : "") + o.name();
+            String[] values = {name, coins(o.buyPrice()), coins(o.sellPrice()), coins(o.netProfit()), String.format(Locale.ROOT, "%.1f%%", o.spreadPercent()), age(o.observedAt())};
+            for (int c = 0; c < values.length; c++) text(g, values[c], columns[c] + 4, y + 5, c == 3 ? 0x65E6AE : selected ? 0xFFFFFF : 0xD5DFEC, columns[c + 1] - columns[c] - 8);
+        }
+        if (table.rows().isEmpty()) text(g, "No matching items. Adjust Settings or search, then Refresh.", columns[0] + 4, rowTop + 7, 0xFFCC66, panelWidth - 32);
+        int sx = columns[6] + 4;
+        g.fill(sx, rowTop, sx + 7, rowBottom, 0xFF0C1420);
+        int thumbHeight = Math.max(16, (rowBottom - rowTop) * Math.min(capacity, Math.max(1, table.rows().size())) / Math.max(1, table.rows().size()));
+        int max = Math.max(0, table.rows().size() - capacity);
+        int thumbY = rowTop + (max == 0 ? 0 : (rowBottom - rowTop - thumbHeight) * table.offset() / max);
+        g.fill(sx, thumbY, sx + 7, thumbY + thumbHeight, 0xFF35E4D0);
+        Opportunity selected = table.selected();
+        text(g, selected == null ? "Click a row to select; View info opens details." : "Selected: " + selected.name(), left + 8, top + panelHeight - 44, 0x35E4D0, panelWidth - 16);
+        text(g, "Sort: " + HEADINGS[table.column().ordinal()] + " " + (table.ascending() ? "low → high" : "high → low") + " | Click heading to reverse", left + 8, top + panelHeight - 27, 0xAAB8CC, panelWidth - 88);
+        super.extractRenderState(g, mx, my, delta);
+    }
+    private static void border(GuiGraphicsExtractor g, int x, int y, int right, int bottom, int color, int thickness) {
+        g.fill(x, y, right, y + thickness, color);
+        g.fill(x, bottom - thickness, right, bottom, color);
+        g.fill(x, y, x + thickness, bottom, color);
+        g.fill(right - thickness, y, right, bottom, color);
+    }
+    private int hitRow(double x, double y) {
+        if (x < columns[0] || x >= columns[6] || y < rowTop || y >= rowBottom) return -1;
+        int row = (int)(y - rowTop) / ROW_HEIGHT;
+        return table.atVisibleRow(row, capacity) == null ? -1 : row;
+    }
+    @Override public boolean mouseClicked(MouseButtonEvent event, boolean twice) {
+        if (event.button() == 0) {
+            int row = hitRow(event.x(), event.y());
+            if (row >= 0) { table.selectVisibleRow(row, capacity); updateRows(); return true; }
+            if (event.x() >= columns[6] + 4 && event.x() < columns[6] + 11 && event.y() >= rowTop && event.y() < rowBottom) {
+                dragging = true; dragScroll(event.y()); return true;
             }
-        }).bounds(535, 390, 90, 20).build());
-        int rowCount = Math.min(18, opportunities.size());
-        for (int row = 0; row < rowCount; row++) {
-            final int index = row;
-            Button hitbox = Button.builder(Component.empty(), b -> selectedIndex = index)
-                    .bounds(18, 94 + row * 12, Math.max(100, width - 36), 13).build();
-            hitbox.setAlpha(0.12f);
-            addRenderableWidget(hitbox);
         }
+        return super.mouseClicked(event, twice);
     }
-    @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-        extractTransparentBackground(g);
-        super.extractRenderState(g, mouseX, mouseY, delta);
-        text(g, "BAZAAR / PREDICT", 24, 18, 0x35E4D0);
-        text(g, "Live Bazaar opportunity scanner", 24, 36, 0xD0D8E8);
-        text(g, String.format("%d items  |  %s  |  %s", opportunities.size(), paused ? "Paused" : "Scanning enabled", "5m history"), 24, 54, 0xAAB8CC);
-        text(g, selectedIndex >= 0 && selectedIndex < opportunities.size() ? "Selected: " + opportunities.get(selectedIndex).name() : "Selected: none — click a row", 24, 68, selectedIndex >= 0 ? 0x35E4D0 : 0xFFCC66);
-        text(g, "ITEM", 24, 82, 0x9EADC2);
-        text(g, "BUY ORDER", 350, 82, 0x9EADC2);
-        text(g, "SELL ORDER", 470, 82, 0x9EADC2);
-        text(g, "EST. NET", 610, 82, 0x9EADC2);
-        text(g, "SPREAD", 735, 82, 0x9EADC2);
-        text(g, "AGE", 835, 82, 0x9EADC2);
-        int y = 98;
-        String query = search == null ? "" : search.getValue().toLowerCase();
-        int shown = 0;
-        for (int i = scroll; i < opportunities.size() && shown < 18; i++) {
-            Opportunity o = opportunities.get(i);
-            if (!query.isBlank() && !o.name().toLowerCase().contains(query) && !o.productId().toLowerCase().contains(query)) continue;
-            if (o.netProfit() < ClientConfig.get().minimumProfit || o.volume() < ClientConfig.get().minimumVolume || o.spreadPercent() > ClientConfig.get().maximumSpreadPercent) continue;
-            int color = o.risk().equals("ok") ? 0xE0E0E0 : 0xFFCC66;
-            if (shown % 2 == 0) g.fill(0x5520334A, 18, y - 3, width - 18, y + 12);
-            if (i == selectedIndex || i == hoveredIndex) {
-                int outline = i == selectedIndex ? 0xFF35E4D0 : 0xFFB0FFF5;
-                g.fill(outline, 18, y - 4, width - 18, y - 3);
-                g.fill(outline, 18, y + 12, width - 18, y + 13);
-                g.fill(outline, 18, y - 4, 19, y + 13);
-                g.fill(outline, width - 19, y - 4, width - 18, y + 13);
-            }
-            if (ClientConfig.get().starredItems.contains(o.productId())) text(g, "★", 8, y, 0xFFD75A);
-            text(g, o.name(), 24, y, color);
-            text(g, formatCoins(o.buyPrice()), 350, y, color);
-            text(g, formatCoins(o.sellPrice()), 470, y, color);
-            text(g, formatCoins(o.netProfit()), 610, y, 0x65E6AE);
-            text(g, String.format("%.1f%%", o.spreadPercent()), 735, y, color);
-            text(g, age(o.observedAt()), 835, y, 0xB8C4D6);
-            y += 12; shown++;
-        }
-        if (opportunities.isEmpty()) text(g, "No opportunities yet. Check the companion service and filters.", 24, 104, 0xFF7777);
-        int total = opportunities.size();
-        int trackTop = 98, trackBottom = Math.max(trackTop + 1, height - 55);
-        g.fill(0x55334455, width - 16, trackTop, width - 10, trackBottom);
-        int visible = 18, maxScroll = Math.max(0, total - visible);
-        int thumbHeight = Math.max(18, (trackBottom - trackTop) * Math.min(visible, Math.max(1, total)) / Math.max(1, total));
-        int thumbTop = trackTop + (maxScroll == 0 ? 0 : (trackBottom - trackTop - thumbHeight) * scroll / maxScroll);
-        g.fill(0xFF35E4D0, width - 16, thumbTop, width - 10, thumbTop + thumbHeight);
-        text(g, "Click a row to select it  •  Mouse wheel scrolls", 24, height - 38, 0xAAB8CC);
+    private void dragScroll(double y) {
+        table.scrollTo((int)Math.round((y - rowTop) / Math.max(1, rowBottom - rowTop) * Math.max(0, table.rows().size() - capacity)), capacity);
     }
-    @Override public void mouseMoved(double mouseX, double mouseY) {
-        if (mouseY >= 98 && mouseY < 98 + 18 * 12) {
-            int index = scroll + (int)((mouseY - 98) / 12);
-            hoveredIndex = index >= 0 && index < opportunities.size() ? index : -1;
-        } else hoveredIndex = -1;
-        super.mouseMoved(mouseX, mouseY);
+    @Override public boolean mouseDragged(MouseButtonEvent e, double dx, double dy) {
+        if (dragging) { dragScroll(e.y()); return true; }
+        return super.mouseDragged(e, dx, dy);
     }
-    @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0 && event.y() >= 98 && event.y() < 98 + 18 * 12) {
-            int index = hoveredIndex >= 0 ? hoveredIndex : scroll + (int)((event.y() - 98) / 12);
-            if (index >= 0 && index < opportunities.size()) { selectedIndex = index; return true; }
-        }
-        return super.mouseClicked(event, doubleClick);
+    @Override public boolean mouseReleased(MouseButtonEvent e) {
+        if (dragging) { dragging = false; return true; }
+        return super.mouseReleased(e);
     }
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
-        int maxScroll = Math.max(0, opportunities.size() - 18);
-        scroll = Math.max(0, Math.min(maxScroll, scroll - (int)Math.signum(vertical)));
-        return true;
+        if (x >= columns[0] && x <= columns[6] + 11 && y >= rowTop && y < rowBottom) {
+            table.scrollTo(table.offset() - (int)Math.signum(vertical) * 3, capacity); return true;
+        }
+        return super.mouseScrolled(x, y, horizontal, vertical);
     }
-    private static String formatCoins(double value) { return value >= 1_000_000 ? String.format("%.2fm", value / 1_000_000) : value >= 1_000 ? String.format("%.2fk", value / 1_000) : String.format("%.0f", value); }
-    private static String age(long timestamp) { long seconds = Math.max(0, (System.currentTimeMillis() - timestamp) / 1000); return seconds < 60 ? seconds + "s" : (seconds / 60) + "m"; }
-    private void text(GuiGraphicsExtractor g, String value, int x, int y, int color) {
-        MutableComponent component = Component.literal(value).withStyle(style -> style.withColor(color));
-        g.textRenderer().accept(x, y, component);
+    private static String coins(double value) { return String.format(Locale.ROOT, value >= 1e6 ? "%.2fm" : value >= 1e3 ? "%.2fk" : "%.2f", value >= 1e6 ? value / 1e6 : value >= 1e3 ? value / 1e3 : value); }
+    private static String age(long time) { return Math.max(0, (System.currentTimeMillis() - time) / 1000) + "s"; }
+    private void text(GuiGraphicsExtractor g, String value, int x, int y, int color, int maxWidth) {
+        g.textRenderer().accept(x, y, Component.literal(font.plainSubstrByWidth(value, Math.max(1, maxWidth))).withStyle(s -> s.withColor(color)));
     }
 }

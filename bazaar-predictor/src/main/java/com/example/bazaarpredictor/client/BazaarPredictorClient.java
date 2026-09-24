@@ -30,7 +30,7 @@ public final class BazaarPredictorClient implements ClientModInitializer {
     private void renderHud(net.minecraft.client.gui.GuiGraphicsExtractor g, net.minecraft.client.DeltaTracker tick) {
         if (!ClientConfig.get().hudEnabled) return;
         int x = 8, y = 8;
-        g.fill(0xB0101824, x - 4, y - 4, 310, 86 + Math.min(5, companion.opportunities().size()) * 12);
+        g.fill(x - 4, y - 4, 310, 86 + Math.min(5, companion.opportunities().size()) * 12, 0xB0101824);
         g.text(Minecraft.getInstance().font, "BAZAAR / PREDICT", x, y, 0x35E4D0); y += 12;
         g.text(Minecraft.getInstance().font, companion.status(), x, y, 0xD0D8E8); y += 12;
         var cfg = ClientConfig.get();
