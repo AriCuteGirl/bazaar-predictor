@@ -50,15 +50,17 @@ public final class BazaarDashboardScreen extends Screen {
             final int index = row;
             Button hitbox = Button.builder(Component.empty(), b -> selectedIndex = index)
                     .bounds(18, 94 + row * 12, Math.max(100, width - 36), 13).build();
-            hitbox.setAlpha(0.0f);
+            hitbox.setAlpha(0.12f);
             addRenderableWidget(hitbox);
         }
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g);
+        super.extractRenderState(g, mouseX, mouseY, delta);
         text(g, "BAZAAR / PREDICT", 24, 18, 0x35E4D0);
         text(g, "Live Bazaar opportunity scanner", 24, 36, 0xD0D8E8);
         text(g, String.format("%d items  |  %s  |  %s", opportunities.size(), paused ? "Paused" : "Scanning enabled", "5m history"), 24, 54, 0xAAB8CC);
+        text(g, selectedIndex >= 0 && selectedIndex < opportunities.size() ? "Selected: " + opportunities.get(selectedIndex).name() : "Selected: none — click a row", 24, 68, selectedIndex >= 0 ? 0x35E4D0 : 0xFFCC66);
         text(g, "ITEM", 24, 82, 0x9EADC2);
         text(g, "BUY ORDER", 350, 82, 0x9EADC2);
         text(g, "SELL ORDER", 470, 82, 0x9EADC2);
@@ -98,8 +100,7 @@ public final class BazaarDashboardScreen extends Screen {
         int thumbHeight = Math.max(18, (trackBottom - trackTop) * Math.min(visible, Math.max(1, total)) / Math.max(1, total));
         int thumbTop = trackTop + (maxScroll == 0 ? 0 : (trackBottom - trackTop - thumbHeight) * scroll / maxScroll);
         g.fill(0xFF35E4D0, width - 16, thumbTop, width - 10, thumbTop + thumbHeight);
-        text(g, "Click a row for details  •  Mouse wheel changes pages", 24, height - 38, 0xAAB8CC);
-        super.extractRenderState(g, mouseX, mouseY, delta);
+        text(g, "Click a row to select it  •  Mouse wheel scrolls", 24, height - 38, 0xAAB8CC);
     }
     @Override public void mouseMoved(double mouseX, double mouseY) {
         if (mouseY >= 98 && mouseY < 98 + 18 * 12) {
