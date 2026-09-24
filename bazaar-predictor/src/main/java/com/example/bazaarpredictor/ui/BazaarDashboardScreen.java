@@ -18,6 +18,7 @@ public final class BazaarDashboardScreen extends Screen {
     private EditBox search;
     private boolean paused;
     private int selectedIndex = -1;
+    private int hoveredIndex = -1;
     private final CompanionClient companion;
     public BazaarDashboardScreen(List<Opportunity> opportunities) {
         super(Component.literal("Bazaar Predictor")); this.opportunities = opportunities;
@@ -65,11 +66,12 @@ public final class BazaarDashboardScreen extends Screen {
             if (o.netProfit() < ClientConfig.get().minimumProfit || o.volume() < ClientConfig.get().minimumVolume || o.spreadPercent() > ClientConfig.get().maximumSpreadPercent) continue;
             int color = o.risk().equals("ok") ? 0xE0E0E0 : 0xFFCC66;
             if (shown % 2 == 0) g.fill(0x5520334A, 18, y - 3, width - 18, y + 12);
-            if (i == selectedIndex) {
-                g.fill(0xFF35E4D0, 18, y - 4, width - 18, y - 3);
-                g.fill(0xFF35E4D0, 18, y + 12, width - 18, y + 13);
-                g.fill(0xFF35E4D0, 18, y - 4, 19, y + 13);
-                g.fill(0xFF35E4D0, width - 19, y - 4, width - 18, y + 13);
+            if (i == selectedIndex || i == hoveredIndex) {
+                int outline = i == selectedIndex ? 0xFF35E4D0 : 0xFFB0FFF5;
+                g.fill(outline, 18, y - 4, width - 18, y - 3);
+                g.fill(outline, 18, y + 12, width - 18, y + 13);
+                g.fill(outline, 18, y - 4, 19, y + 13);
+                g.fill(outline, width - 19, y - 4, width - 18, y + 13);
             }
             if (ClientConfig.get().starredItems.contains(o.productId())) text(g, "★", 8, y, 0xFFD75A);
             text(g, o.name(), 24, y, color);
@@ -91,9 +93,16 @@ public final class BazaarDashboardScreen extends Screen {
         text(g, "Click a row for details  •  Mouse wheel changes pages", 24, height - 38, 0xAAB8CC);
         super.extractRenderState(g, mouseX, mouseY, delta);
     }
+    @Override public void mouseMoved(double mouseX, double mouseY) {
+        if (mouseY >= 98 && mouseY < 98 + 18 * 12) {
+            int index = scroll + (int)((mouseY - 98) / 12);
+            hoveredIndex = index >= 0 && index < opportunities.size() ? index : -1;
+        } else hoveredIndex = -1;
+        super.mouseMoved(mouseX, mouseY);
+    }
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == 0 && event.y() >= 98 && event.y() < 98 + 18 * 12) {
-            int index = scroll + (int)((event.y() - 98) / 12);
+            int index = hoveredIndex >= 0 ? hoveredIndex : scroll + (int)((event.y() - 98) / 12);
             if (index >= 0 && index < opportunities.size()) { selectedIndex = index; return true; }
         }
         return super.mouseClicked(event, doubleClick);
