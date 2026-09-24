@@ -23,7 +23,7 @@ public final class BazaarPredictorClient implements ClientModInitializer {
         companion.start();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (hudKey.consumeClick()) ClientConfig.get().hudEnabled = !ClientConfig.get().hudEnabled;
-            while (dashboardKey.consumeClick()) client.setScreenAndShow(new BazaarDashboardScreen(companion.opportunities()));
+            while (dashboardKey.consumeClick()) client.setScreenAndShow(new BazaarDashboardScreen(companion));
         });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("bazaarpredictor", "hud"), this::renderHud);
     }
