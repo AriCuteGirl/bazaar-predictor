@@ -17,6 +17,7 @@ public final class BazaarDashboardScreen extends Screen {
     private int scroll;
     private EditBox search;
     private boolean paused;
+    private int selectedIndex = -1;
     private final CompanionClient companion;
     public BazaarDashboardScreen(List<Opportunity> opportunities) {
         super(Component.literal("Bazaar Predictor")); this.opportunities = opportunities;
@@ -31,8 +32,11 @@ public final class BazaarDashboardScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Auto-scan: ON"), b -> { paused = !paused; b.setMessage(Component.literal(paused ? "Auto-scan: OFF" : "Auto-scan: ON")); }).bounds(320, 365, 105, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Pause"), b -> { paused = !paused; b.setMessage(Component.literal(paused ? "Resume" : "Pause")); }).bounds(630, 365, 80, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Prepare order"), b -> {
-            if (!opportunities.isEmpty()) minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(Math.min(scroll, opportunities.size() - 1))));
+            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) minecraft.setScreenAndShow(new ConfirmationScreen(opportunities.get(selectedIndex)));
         }).bounds(715, 365, 145, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("View info"), b -> {
+            if (selectedIndex >= 0 && selectedIndex < opportunities.size()) minecraft.setScreenAndShow(new OpportunityDetailsScreen(this, opportunities.get(selectedIndex)));
+        }).bounds(715, 390, 145, 20).build());
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g);
@@ -54,7 +58,12 @@ public final class BazaarDashboardScreen extends Screen {
             if (o.netProfit() < ClientConfig.get().minimumProfit || o.volume() < ClientConfig.get().minimumVolume || o.spreadPercent() > ClientConfig.get().maximumSpreadPercent) continue;
             int color = o.risk().equals("ok") ? 0xE0E0E0 : 0xFFCC66;
             if (shown % 2 == 0) g.fill(0x5520334A, 18, y - 3, width - 18, y + 12);
-            g.fill(0x6635E4D0, 18, y + 11, width - 18, y + 12);
+            if (i == selectedIndex) {
+                g.fill(0xFF35E4D0, 18, y - 4, width - 18, y - 3);
+                g.fill(0xFF35E4D0, 18, y + 12, width - 18, y + 13);
+                g.fill(0xFF35E4D0, 18, y - 4, 19, y + 13);
+                g.fill(0xFF35E4D0, width - 19, y - 4, width - 18, y + 13);
+            }
             text(g, o.name(), 24, y, color);
             text(g, formatCoins(o.buyPrice()), 350, y, color);
             text(g, formatCoins(o.sellPrice()), 470, y, color);
@@ -77,7 +86,7 @@ public final class BazaarDashboardScreen extends Screen {
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == 0 && event.y() >= 98 && event.y() < 98 + 18 * 12) {
             int index = scroll + (int)((event.y() - 98) / 12);
-            if (index >= 0 && index < opportunities.size()) { minecraft.setScreenAndShow(new OpportunityDetailsScreen(this, opportunities.get(index))); return true; }
+            if (index >= 0 && index < opportunities.size()) { selectedIndex = index; return true; }
         }
         return super.mouseClicked(event, doubleClick);
     }
