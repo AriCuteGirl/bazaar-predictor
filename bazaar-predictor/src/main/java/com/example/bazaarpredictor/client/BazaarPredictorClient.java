@@ -11,6 +11,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
+import com.example.bazaarpredictor.config.ClientConfig;
 
 public final class BazaarPredictorClient implements ClientModInitializer {
     private final CompanionClient companion = new CompanionClient();
@@ -28,11 +29,16 @@ public final class BazaarPredictorClient implements ClientModInitializer {
     }
     private void renderHud(net.minecraft.client.gui.GuiGraphicsExtractor g, net.minecraft.client.DeltaTracker tick) {
         if (!ClientConfig.get().hudEnabled) return;
-        g.text(Minecraft.getInstance().font, "Bazaar Predictor  •  " + companion.status(), 8, 8, 0xFFFFFF);
+        int x = 8, y = 8;
+        g.fill(0xB0101824, x - 4, y - 4, 310, 86 + Math.min(5, companion.opportunities().size()) * 12);
+        g.text(Minecraft.getInstance().font, "BAZAAR / PREDICT", x, y, 0x35E4D0); y += 12;
+        g.text(Minecraft.getInstance().font, companion.status(), x, y, 0xD0D8E8); y += 12;
+        var cfg = ClientConfig.get();
+        g.text(Minecraft.getInstance().font, String.format("Prepared: %d  Est. +%.0f  Loss: %.0f", cfg.preparedOrders, cfg.estimatedSessionProfit, cfg.estimatedSessionLoss), x, y, 0xAAB8CC); y += 14;
         var list = companion.opportunities();
         for (int i = 0; i < Math.min(3, list.size()); i++) {
             var o = list.get(i);
-            g.text(Minecraft.getInstance().font, String.format("%s  +%.0f/item  %.1f%%", o.name(), o.netProfit(), o.spreadPercent()), 8, 20 + i * 11, 0x80FF80);
+            g.text(Minecraft.getInstance().font, String.format("%s  +%.0f/item  %.1f%%", o.name(), o.netProfit(), o.spreadPercent()), x, y + i * 12, 0x80FF80);
         }
     }
 }

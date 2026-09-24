@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import com.example.bazaarpredictor.config.ClientConfig;
 
 public final class ConfirmationScreen extends Screen {
     private final Opportunity opportunity;
@@ -13,6 +14,9 @@ public final class ConfirmationScreen extends Screen {
     @Override protected void init() {
         addRenderableWidget(Button.builder(Component.literal("Prepare in Bazaar"), b -> {
             // Deliberately only closes this summary; no final transaction click is automated.
+            ClientConfig.get().preparedOrders++;
+            if (opportunity.netProfit() >= 0) ClientConfig.get().estimatedSessionProfit += opportunity.netProfit();
+            else ClientConfig.get().estimatedSessionLoss += -opportunity.netProfit();
             minecraft.setScreenAndShow(null);
         }).bounds(width / 2 - 100, height / 2 + 55, 200, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.setScreenAndShow(null)).bounds(width / 2 - 100, height / 2 + 82, 200, 20).build());

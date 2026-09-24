@@ -8,6 +8,9 @@ public final class ClientConfig {
     public double maximumSpreadPercent = 50.0;
     public double availableCoins = 100_000.0;
     public boolean autoProfitMode = true;
+    public int preparedOrders = 0;
+    public double estimatedSessionProfit = 0.0;
+    public double estimatedSessionLoss = 0.0;
     private static final ClientConfig INSTANCE = new ClientConfig();
     public static ClientConfig get() { return INSTANCE; }
 }
