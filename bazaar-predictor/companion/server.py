@@ -15,10 +15,10 @@ def load_config():
     except (OSError, ValueError):
         return {"api_key": "", "poll_seconds": 60, "min_profit": 100, "min_volume": 100}
 
-def order_stats(summary):
+def order_stats(summary, best_price):
     if not summary:
         return 0.0, 0.0
-    price = max((x.get("pricePerUnit", 0) for x in summary), default=0.0)
+    price = best_price((x.get("pricePerUnit", 0) for x in summary), default=0.0)
     volume = sum(x.get("orders", 0) * x.get("amount", 0) for x in summary)
     return price, volume
 
@@ -34,14 +34,16 @@ def poll():
             products = response.json().get("products", {})
             rows = []
             for product_id, product in products.items():
-                buy_price, buy_volume = order_stats(product.get("buy_summary", []))
-                sell_price, sell_volume = order_stats(product.get("sell_summary", []))
+                # Buy summaries are buyer bids: use the highest bid.
+                # Sell summaries are seller asks: use the lowest ask.
+                buy_price, buy_volume = order_stats(product.get("buy_summary", []), max)
+                sell_price, sell_volume = order_stats(product.get("sell_summary", []), min)
                 if not buy_price or not sell_price or buy_price <= sell_price:
                     continue
                 gross = buy_price - sell_price
                 net = gross - buy_price * 0.0125
                 volume = min(buy_volume, sell_volume)
-                if net < cfg.get("min_profit", 100):
+                if volume < cfg.get("min_volume", 100) or net < cfg.get("min_profit", 100):
                     continue
                 rows.append({
                     "productId": product_id, "name": product_id.replace("_", " "),
