@@ -45,6 +45,14 @@ public final class BazaarDashboardScreen extends Screen {
                 b.setMessage(Component.literal(ClientConfig.get().starredItems.contains(id) ? "Unstar item" : "Star item"));
             }
         }).bounds(535, 390, 90, 20).build());
+        int rowCount = Math.min(18, opportunities.size());
+        for (int row = 0; row < rowCount; row++) {
+            final int index = row;
+            Button hitbox = Button.builder(Component.empty(), b -> selectedIndex = index)
+                    .bounds(18, 94 + row * 12, Math.max(100, width - 36), 13).build();
+            hitbox.setAlpha(0.0f);
+            addRenderableWidget(hitbox);
+        }
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         extractTransparentBackground(g);
