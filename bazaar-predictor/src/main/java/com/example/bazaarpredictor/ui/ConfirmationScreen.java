@@ -17,7 +17,7 @@ public final class ConfirmationScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.setScreenAndShow(null)).bounds(width / 2 - 100, height / 2 + 82, 200, 20).build());
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int x, int y, float delta) {
-        extractBackground(g, x, y, delta);
+        extractTransparentBackground(g);
         int left = width / 2 - 150; int top = height / 2 - 80;
         g.text(font, title, left, top, 0xFFFFFF);
         g.text(font, "Item: " + opportunity.name(), left, top + 22, 0xE0E0E0);

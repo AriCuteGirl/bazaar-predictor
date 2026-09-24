@@ -23,7 +23,7 @@ public final class BazaarDashboardScreen extends Screen {
         }).bounds(250, 335, 180, 20).build());
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-        extractBackground(g, mouseX, mouseY, delta);
+        extractTransparentBackground(g);
         g.text(font, title, 20, 16, 0xFFFFFF);
         g.text(font, "Item                         Buy       Sell       Net/item    Spread     Volume     Fill", 20, 34, 0xA0A0A0);
         int y = 50;
