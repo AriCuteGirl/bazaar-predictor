@@ -34,22 +34,30 @@ def poll():
             products = response.json().get("products", {})
             rows = []
             for product_id, product in products.items():
-                # Buy summaries are buyer bids: use the highest bid.
-                # Sell summaries are seller asks: use the lowest ask.
-                buy_price, buy_volume = order_stats(product.get("buy_summary", []), max)
-                sell_price, sell_volume = order_stats(product.get("sell_summary", []), min)
-                if not buy_price or not sell_price or buy_price <= sell_price:
+                # Hypixel provides normalized top-of-book values in quick_status.
+                # Use those instead of trusting every raw summary level: stale or
+                # malformed levels can otherwise create impossible spreads.
+                quick = product.get("quick_status", {})
+                # For a flip, buy at the current sell offer and sell into the
+                # current buy order. Hypixel's field names describe those sides.
+                buy_price = float(quick.get("sellPrice", 0))
+                sell_price = float(quick.get("buyPrice", 0))
+                buy_volume = float(quick.get("sellVolume", 0))
+                sell_volume = float(quick.get("buyVolume", 0))
+                if not buy_price or not sell_price or sell_price <= buy_price:
                     continue
-                gross = buy_price - sell_price
-                net = gross - buy_price * 0.0125
+                gross = sell_price - buy_price
+                net = gross - sell_price * 0.0125
                 volume = min(buy_volume, sell_volume)
-                if volume < cfg.get("min_volume", 100) or net < cfg.get("min_profit", 100):
+                spread_percent = gross / max(buy_price, 1) * 100
+                max_spread = cfg.get("max_spread_percent", 50)
+                if volume < cfg.get("min_volume", 100) or net < cfg.get("min_profit", 100) or spread_percent > max_spread:
                     continue
                 rows.append({
                     "productId": product_id, "name": product_id.replace("_", " "),
-                    "buyPrice": sell_price, "sellPrice": buy_price,
+                    "buyPrice": buy_price, "sellPrice": sell_price,
                     "netProfit": round(net, 2),
-                    "spreadPercent": round(gross / max(sell_price, 1) * 100, 2),
+                    "spreadPercent": round(spread_percent, 2),
                     "volume": round(volume, 1),
                     "fillMinutes": round(1000000 / max(volume, 1), 1),
                     "observedAt": now,
